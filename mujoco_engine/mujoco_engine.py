@@ -78,7 +78,11 @@ class Mujoco_Engine:
         self.mj_data = mujoco.MjData(self.mj_model)
         
         ## MJ Viewer:
-        self.mj_viewer = mujoco_viewer.MujocoViewer(self.mj_model, self.mj_data, width=800, height=800, title="main")
+        self.mj_viewer = mujoco_viewer.MujocoViewer(self.mj_model, self.mj_data, 
+            title="main", 
+            sensor_config=None,
+            window_size=(1280,720),
+        )
         # if len(self._camera_config):
         # self.mj_viewer_off = mujoco_viewer.MujocoViewer(self.mj_model, self.mj_data, width=800, height=800, title="camera-view")
         self._t_update = time.time()
@@ -87,15 +91,13 @@ class Mujoco_Engine:
     #  P U B L I C    F U N C T I O N  #
     #==================================#
     def shutdown(self):
-        self.mj_viewer.close()
-        if self.mj_viewer_off:
-            self.mj_viewer_off.close()
+        print("[Job_Engine::{}] Program killed: running cleanup code".format(self._name))
+        self.mj_viewer.terminate_safe()
             
     def is_shutdown(self):
         try:
             return False
         except MuJoCo_Engine_InterruptException:
-            print("[Job_Engine::{}] Program killed: running cleanup code".format(self._name))
             self.shutdown()
             return True
     
@@ -117,7 +119,8 @@ class Mujoco_Engine:
 
         # - render current view:
         mujoco.mj_step(self.mj_model, self.mj_data)
-        self.mj_viewer.render()
+        self.mj_viewer.process_safe()
+        self.mj_viewer.render_safe()
         # self.mj_viewer_off.render()
 
         # - capture view:
