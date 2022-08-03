@@ -27,6 +27,8 @@ import numpy as np
 import mujoco
 import mujoco_viewer
 
+import cv2
+
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # #        ___           ___         ___          ___           ___           ___       # #
@@ -54,8 +56,8 @@ class Mujoco_Engine:
     #  C O N S T A N T  #
     #===================#
     _camera_config = {
-        "camera/zed/L": {"width": 1280, "height":720, "fps": 60},
-        "camera/zed/R": {"width": 1280, "height":720, "fps": 60},
+        "camera/zed/L": {"width": 1280, "height":720, "fps": 60, "id":1},
+        "camera/zed/R": {"width": 1280, "height":720, "fps": 60, "id":0},
     }
     _camera_views = {}
     _IC_state = None
@@ -69,7 +71,7 @@ class Mujoco_Engine:
         signal.signal(signal.SIGINT, self._signal_handler)
         ## Init Configs:
         if camera_config:
-            self._camera_config.update(camera_config)
+            self._camera_config = (camera_config) # override if given
         self._name = name
         self._rate_Hz = rate_Hz
         
@@ -79,8 +81,8 @@ class Mujoco_Engine:
         
         ## MJ Viewer:
         self.mj_viewer = mujoco_viewer.MujocoViewer(self.mj_model, self.mj_data, 
-            title="main", 
-            sensor_config=None,
+            title="Mujoco-Engine", 
+            sensor_config=self._camera_config,
             window_size=(1280,720),
         )
         # if len(self._camera_config):
@@ -112,21 +114,28 @@ class Mujoco_Engine:
 
     def _update(self):
         delta_t = time.time() - self._t_update
-        print("FPS: {0}".format(1/delta_t))
+        # print("FPS: {0}".format(1/delta_t))
         # - command joint control angles:
         self.mj_data.actuator("wam/J1/P").ctrl = -1.92
         self.mj_data.actuator("wam/J2/P").ctrl = 1.88
 
         # - render current view:
-        mujoco.mj_step(self.mj_model, self.mj_data)
+        for i in range(10):
+            mujoco.mj_step(self.mj_model, self.mj_data)
         self.mj_viewer.process_safe()
+        self.mj_viewer.update_safe()
         self.mj_viewer.render_safe()
+        self.mj_viewer.render_sensor_cameras_safe()
         # self.mj_viewer_off.render()
 
         # - capture view:
-        # camera_sensor_data = self.mj_viewer.acquire_sensor_camera_frames()
-        # print(camera_sensor_data["frame_stamp"])
-        # imgs_plot(dict_of_imgs=camera_sensor_data["frame_buffer"], figsize=(6,2), OUT_DIR="output", tag="test")
+        camera_sensor_data = self.mj_viewer.acquire_sensor_camera_frames_safe()
+        print(camera_sensor_data["frame_stamp"])
+        for camera_name, camera_buf in camera_sensor_data["frame_buffer"].items():
+            img = cv2.cvtColor(camera_buf, cv2.COLOR_RGB2BGR)
+            img = np.flipud(img)
+            cv2.imshow(camera_name, img)
+            cv2.waitKey(1)
         
         # - update:
         self._t_update = time.time()
