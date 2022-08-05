@@ -25,9 +25,13 @@ from datetime import timedelta
 # python 3rd party libraries:
 import numpy as np
 import mujoco
+import cv2
+
+# custom libraries:
 import mujoco_viewer
 
-import cv2
+# local libraries:
+from mujoco_engine.core_engine.wrapper.core import MjData, MjModel
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -58,6 +62,7 @@ class Mujoco_Engine:
     _camera_config = {
         "camera/zed/L": {"width": 1280, "height":720, "fps": 60, "id":1},
         "camera/zed/R": {"width": 1280, "height":720, "fps": 60, "id":0},
+        "camera/intel/rgb": {"width": 1280, "height":720, "fps": 60, "id":2},
     }
     _camera_views = {}
     _IC_state = None
@@ -76,11 +81,13 @@ class Mujoco_Engine:
         self._rate_Hz = rate_Hz
         
         ## Initiate MJ
-        self.mj_model = mujoco.MjModel.from_xml_path(xml_path)
-        self.mj_data = mujoco.MjData(self.mj_model)
+        # self.mj_model = mujoco.MjModel.from_xml_path(xml_path)
+        # self.mj_data = mujoco.MjData(self.mj_model)
+        self.mj_model = MjModel.from_xml_path(xml_path=xml_path)
+        self.mj_data = MjData(self.mj_model)
         
         ## MJ Viewer:
-        self.mj_viewer = mujoco_viewer.MujocoViewer(self.mj_model, self.mj_data, 
+        self.mj_viewer = mujoco_viewer.MujocoViewer(self.mj_model._model, self.mj_data._data, 
             title="Mujoco-Engine", 
             sensor_config=self._camera_config,
             window_size=(1280,720),
@@ -121,7 +128,7 @@ class Mujoco_Engine:
 
         # - render current view:
         for i in range(10):
-            mujoco.mj_step(self.mj_model, self.mj_data)
+            mujoco.mj_step(self.mj_model._model, self.mj_data._data)
         self.mj_viewer.process_safe()
         self.mj_viewer.update_safe()
         self.mj_viewer.render_safe()
