@@ -17,5 +17,5 @@ $ cd jx-mujoco-python-engine
 $ pip install -e .
 ```
 
-### Example:
-+ Developped for [simulation-mujoco-summit-wam]https://github.com/UW-Advanced-Robotics-Lab/simulation-mujoco-summit-wam/tree/dev/project-wagon
+## Demo (WIP):
+- https://github.com/UW-Advanced-Robotics-Lab/simulation-mujoco-summit-wam
