@@ -138,10 +138,19 @@ class Mujoco_Engine:
         self.mj_data.actuator("wam/J1/P").ctrl = -1.92
         self.mj_data.actuator("wam/J2/P").ctrl = 1.88
 
-        # - render current view:
-        for i in range(10):
-            mujoco.mj_step(self.mj_model._model, self.mj_data._data)
+        # process GUI interrupts
         self.mj_viewer.process_safe()
+        
+        # stepping if needed
+        if not self.mj_viewer.is_key_registered_to_pause_program_safe() or \
+            self.mj_viewer.is_key_registered_to_step_to_next_safe():
+            # - render current view:
+            for i in range(10):
+                mujoco.mj_step(self.mj_model._model, self.mj_data._data)
+            
+            self.mj_viewer.reset_key_registered_to_step_to_next_safe()
+
+        # render current view with glfw:
         self.mj_viewer.update_safe()
         self.mj_viewer.render_safe()
         self.mj_viewer.render_sensor_cameras_safe()
@@ -151,6 +160,7 @@ class Mujoco_Engine:
         camera_sensor_data = self.mj_viewer.acquire_sensor_camera_frames_safe()
         print(camera_sensor_data["frame_stamp"])
         
+        # render captured views on cv2
         if if_camera_preview:
             cv2_capture_window = []
             for camera_name, camera_buf in camera_sensor_data["frame_buffer"].items():
