@@ -71,7 +71,12 @@ class Mujoco_Engine:
     #===============================#
     #  I N I T I A L I Z A T I O N  #
     #===============================#
-    def __init__(self,  xml_path, rate_Hz, camera_config=None, name="DEFAULT"):
+    def __init__(self,  
+        xml_path, rate_Hz, 
+        camera_config=None, 
+        name="DEFAULT", 
+        CAMERA_V_FACTOR=3
+    ):
         signal.signal(signal.SIGTERM, self._signal_handler)
         signal.signal(signal.SIGINT, self._signal_handler)
         ## Init Configs:
@@ -96,12 +101,19 @@ class Mujoco_Engine:
         # self.mj_viewer_off = mujoco_viewer.MujocoViewer(self.mj_model, self.mj_data, width=800, height=800, title="camera-view")
         self._t_update = time.time()
         
+        # cv2 window
+        cv2.startWindowThread()
+        self.h_min = np.Infinity
+        for camera, config in self._camera_config.items():
+            self.h_min = int(min(config["height"]/CAMERA_V_FACTOR, self.h_min))
+        
     #==================================#
     #  P U B L I C    F U N C T I O N  #
     #==================================#
     def shutdown(self):
         print("[Job_Engine::{}] Program killed: running cleanup code".format(self._name))
         self.mj_viewer.terminate_safe()
+        cv2.destroyAllWindows()
             
     def is_shutdown(self):
         try:
@@ -119,17 +131,26 @@ class Mujoco_Engine:
     def _internal_engine_update(self):
         self._update()
 
-    def _update(self):
+    def _update(self, if_camera_preview=True):
         delta_t = time.time() - self._t_update
         # print("FPS: {0}".format(1/delta_t))
         # - command joint control angles:
         self.mj_data.actuator("wam/J1/P").ctrl = -1.92
         self.mj_data.actuator("wam/J2/P").ctrl = 1.88
 
-        # - render current view:
-        for i in range(10):
-            mujoco.mj_step(self.mj_model._model, self.mj_data._data)
+        # process GUI interrupts
         self.mj_viewer.process_safe()
+        
+        # stepping if needed
+        if not self.mj_viewer.is_key_registered_to_pause_program_safe() or \
+            self.mj_viewer.is_key_registered_to_step_to_next_safe():
+            # - render current view:
+            for i in range(10):
+                mujoco.mj_step(self.mj_model._model, self.mj_data._data)
+            
+            self.mj_viewer.reset_key_registered_to_step_to_next_safe()
+
+        # render current view with glfw:
         self.mj_viewer.update_safe()
         self.mj_viewer.render_safe()
         self.mj_viewer.render_sensor_cameras_safe()
@@ -138,11 +159,17 @@ class Mujoco_Engine:
         # - capture view:
         camera_sensor_data = self.mj_viewer.acquire_sensor_camera_frames_safe()
         print(camera_sensor_data["frame_stamp"])
-        for camera_name, camera_buf in camera_sensor_data["frame_buffer"].items():
-            img = cv2.cvtColor(camera_buf, cv2.COLOR_RGB2BGR)
-            img = np.flipud(img)
-            cv2.imshow(camera_name, img)
-            cv2.waitKey(1)
+        
+        # render captured views on cv2
+        if if_camera_preview:
+            cv2_capture_window = []
+            for camera_name, camera_buf in camera_sensor_data["frame_buffer"].items():
+                img = cv2.cvtColor(camera_buf, cv2.COLOR_RGB2BGR)
+                img = cv2.flip(img, 0)
+                img = cv2.resize(img, (int(img.shape[1] * self.h_min / img.shape[0]), self.h_min))
+                cv2_capture_window.append(img)
+                
+            cv2.imshow("camera views", cv2.hconcat(cv2_capture_window))
         
         # - update:
         self._t_update = time.time()
